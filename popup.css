@@ -109,3 +109,10 @@ body {
     color: #00e6b8;
   }
   
+  /* Highlight current session */
+  #currentSessionContainer {
+    border: 1px solid #00e6b8;
+    padding: 10px;
+    border-radius: 8px;
+  }
+  

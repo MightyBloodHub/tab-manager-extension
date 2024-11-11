@@ -42,6 +42,7 @@ function displayCurrentSession(session) {
       if (response && response.success) {
         showMessage('Session updated successfully.');
         loadSessions();
+        checkCurrentSession(); // Update the current session display
       } else {
         showMessage('Error updating session: ' + (response.error || 'Unknown error'), true);
       }
@@ -80,8 +81,13 @@ function loadSessions() {
 function displaySessions(sessions) {
   const sessionsList = document.getElementById('sessionsList');
   sessionsList.innerHTML = '';
+  const currentWindowId = chrome.windows.WINDOW_ID_CURRENT.toString();
+
   for (let sessionId in sessions) {
     const session = sessions[sessionId];
+    // Skip the current session
+    if (sessionId === currentWindowId) continue;
+
     const sessionDiv = document.createElement('div');
     sessionDiv.className = 'session';
 
