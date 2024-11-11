@@ -1,19 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "Tab Session Manager",
-  "description": "Save, load, update, and rename tab sessions across Chrome windows.",
-  "version": "1.1",
+  "name": "Enhanced Tab Session Manager",
+  "description": "Advanced tab session management with futuristic UI/UX.",
+  "version": "2.1",
   "permissions": ["tabs", "storage", "notifications"],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Tab Session Manager",
-    "default_icon": "icon.png"
-  },
-  "icons": {
-    "16": "icon.png",
-    "32": "icon.png",
-    "48": "icon.png",
-    "128": "icon.png"
+    "default_title": "Enhanced Tab Session Manager",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "background": {
     "service_worker": "background.js"

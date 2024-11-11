@@ -2,42 +2,26 @@
 
 // Initialize the sessions object if it doesn't exist
 chrome.runtime.onInstalled.addListener(() => {
-    chrome.storage.local.get(['sessions', 'errorLogs'], (data) => {
+    chrome.storage.local.get('sessions', (data) => {
       if (!data.sessions) {
         chrome.storage.local.set({ sessions: {} });
-      }
-      if (!data.errorLogs) {
-        chrome.storage.local.set({ errorLogs: [] });
       }
     });
   });
   
-  // Utility function to log errors
-  function logError(errorMessage) {
-    const timestamp = new Date().toISOString();
-    const logEntry = `[${timestamp}] ${errorMessage}`;
-    chrome.storage.local.get('errorLogs', (data) => {
-      const errorLogs = data.errorLogs || [];
-      errorLogs.push(logEntry);
-      chrome.storage.local.set({ errorLogs: errorLogs });
-    });
-  }
-  
   // Listen for messages from the popup script
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'saveSession') {
-      saveSession(request.sessionName).then(() => {
-        sendResponse({ success: true });
+      saveSession(request.sessionName).then((sessionId) => {
+        sendResponse({ success: true, sessionId: sessionId });
       }).catch((error) => {
-        logError(error.message);
         sendResponse({ success: false, error: error.message });
       });
       return true;
-    } else if (request.action === 'overwriteSession') {
-      overwriteSession(request.sessionName).then(() => {
+    } else if (request.action === 'updateSession') {
+      updateSession(request.sessionId, request.sessionName).then(() => {
         sendResponse({ success: true });
       }).catch((error) => {
-        logError(error.message);
         sendResponse({ success: false, error: error.message });
       });
       return true;
@@ -45,7 +29,6 @@ chrome.runtime.onInstalled.addListener(() => {
       loadSession(request.sessionId).then(() => {
         sendResponse({ success: true });
       }).catch((error) => {
-        logError(error.message);
         sendResponse({ success: false, error: error.message });
       });
       return true;
@@ -53,7 +36,6 @@ chrome.runtime.onInstalled.addListener(() => {
       renameSession(request.sessionId, request.newName).then(() => {
         sendResponse({ success: true });
       }).catch((error) => {
-        logError(error.message);
         sendResponse({ success: false, error: error.message });
       });
       return true;
@@ -61,7 +43,6 @@ chrome.runtime.onInstalled.addListener(() => {
       getSessions().then((sessions) => {
         sendResponse({ success: true, sessions: sessions });
       }).catch((error) => {
-        logError(error.message);
         sendResponse({ success: false, error: error.message });
       });
       return true;
@@ -69,13 +50,12 @@ chrome.runtime.onInstalled.addListener(() => {
       deleteSession(request.sessionId).then(() => {
         sendResponse({ success: true });
       }).catch((error) => {
-        logError(error.message);
         sendResponse({ success: false, error: error.message });
       });
       return true;
-    } else if (request.action === 'getErrorLogs') {
-      getErrorLogs().then((logs) => {
-        sendResponse({ success: true, logs: logs });
+    } else if (request.action === 'getSessionByWindowId') {
+      getSessionByWindowId(request.windowId).then((session) => {
+        sendResponse({ success: true, session: session });
       }).catch((error) => {
         sendResponse({ success: false, error: error.message });
       });
@@ -83,73 +63,59 @@ chrome.runtime.onInstalled.addListener(() => {
     }
   });
   
-  // Save a new session or prompt to overwrite if name exists
+  // Function implementations
+  
   async function saveSession(sessionName) {
-    // If sessionName is not provided, use the current date and time
+    // If sessionName is empty, default to current date and timestamp
     if (!sessionName || sessionName.trim() === '') {
-      sessionName = `Session - ${new Date().toLocaleString()}`;
+      const date = new Date();
+      sessionName = date.toLocaleString();
     }
-    const [currentWindow] = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] });
+  
+    const currentWindow = await chrome.windows.getCurrent({ populate: true });
     const tabs = currentWindow.tabs.map(tab => ({ url: tab.url, title: tab.title }));
   
     let sessions = await getSessions();
-    let sessionId;
+    const windowId = currentWindow.id.toString();
   
-    // Check if a session with the same name exists
-    for (let id in sessions) {
-      if (sessions[id].name === sessionName) {
-        sessionId = id;
-        break;
-      }
+    // Check if a session already exists for this window
+    if (sessions[windowId]) {
+      // Instead of creating a duplicate, we can update the existing session
+      throw new Error('A session already exists for this window.');
     }
   
-    if (sessionId) {
-      // Session with same name exists, throw error to prompt overwrite
-      throw new Error('A session with this name already exists.');
-    } else {
-      // Create new session
-      sessionId = Date.now().toString();
-      sessions[sessionId] = {
-        name: sessionName,
-        tabs: tabs
-      };
+    // Create new session
+    sessions[windowId] = {
+      sessionId: windowId,
+      name: sessionName,
+      tabs: tabs,
+      windowId: windowId
+    };
+  
+    await chrome.storage.local.set({ sessions: sessions });
+    return windowId;
+  }
+  
+  async function updateSession(sessionId, sessionName) {
+    const currentWindow = await chrome.windows.getCurrent({ populate: true });
+    const tabs = currentWindow.tabs.map(tab => ({ url: tab.url, title: tab.title }));
+  
+    let sessions = await getSessions();
+  
+    if (!sessions[sessionId]) {
+      throw new Error('Session not found for update.');
     }
+  
+    // If a new session name is provided, update it
+    if (sessionName && sessionName.trim() !== '') {
+      sessions[sessionId].name = sessionName.trim();
+    }
+  
+    sessions[sessionId].tabs = tabs;
   
     await chrome.storage.local.set({ sessions: sessions });
   }
   
-  // Overwrite an existing session
-  async function overwriteSession(sessionName) {
-    if (!sessionName || sessionName.trim() === '') {
-      throw new Error('Session name cannot be empty.');
-    }
-    const [currentWindow] = await chrome.windows.getAll({ populate: true, windowTypes: ['normal'] });
-    const tabs = currentWindow.tabs.map(tab => ({ url: tab.url, title: tab.title }));
-  
-    let sessions = await getSessions();
-    let sessionId;
-  
-    // Find the session with the given name
-    for (let id in sessions) {
-      if (sessions[id].name === sessionName) {
-        sessionId = id;
-        break;
-      }
-    }
-  
-    if (sessionId) {
-      // Overwrite the session
-      sessions[sessionId] = {
-        name: sessionName,
-        tabs: tabs
-      };
-      await chrome.storage.local.set({ sessions: sessions });
-    } else {
-      throw new Error('Session not found for overwrite.');
-    }
-  }
-  
-  // Load a session's tabs
   async function loadSession(sessionId) {
     const sessions = await getSessions();
     const session = sessions[sessionId];
@@ -170,7 +136,6 @@ chrome.runtime.onInstalled.addListener(() => {
     }
   }
   
-  // Rename an existing session
   async function renameSession(sessionId, newName) {
     if (!newName || newName.trim() === '') {
       throw new Error('New session name cannot be empty.');
@@ -181,7 +146,7 @@ chrome.runtime.onInstalled.addListener(() => {
     }
     // Check for duplicate session names
     for (let id in sessions) {
-      if (sessions[id].name === newName) {
+      if (sessions[id].name === newName && id !== sessionId) {
         throw new Error('A session with this name already exists.');
       }
     }
@@ -189,18 +154,6 @@ chrome.runtime.onInstalled.addListener(() => {
     await chrome.storage.local.set({ sessions: sessions });
   }
   
-  // Delete a session
-  async function deleteSession(sessionId) {
-    let sessions = await getSessions();
-    if (sessions[sessionId]) {
-      delete sessions[sessionId];
-      await chrome.storage.local.set({ sessions: sessions });
-    } else {
-      throw new Error('Session not found');
-    }
-  }
-  
-  // Get all saved sessions
   async function getSessions() {
     return new Promise((resolve, reject) => {
       chrome.storage.local.get('sessions', (data) => {
@@ -213,16 +166,22 @@ chrome.runtime.onInstalled.addListener(() => {
     });
   }
   
-  // Get error logs
-  async function getErrorLogs() {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get('errorLogs', (data) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(data.errorLogs || []);
-        }
-      });
-    });
+  async function deleteSession(sessionId) {
+    let sessions = await getSessions();
+    if (sessions[sessionId]) {
+      delete sessions[sessionId];
+      await chrome.storage.local.set({ sessions: sessions });
+    } else {
+      throw new Error('Session not found');
+    }
+  }
+  
+  async function getSessionByWindowId(windowId) {
+    let sessions = await getSessions();
+    if (sessions[windowId]) {
+      return sessions[windowId];
+    } else {
+      return null;
+    }
   }
   

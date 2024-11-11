@@ -1,38 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Tab Session Manager</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 10px; width: 300px; }
-    #sessionName { width: 100%; }
-    button { margin-top: 5px; }
-    .session { border-bottom: 1px solid #ccc; padding: 5px 0; clear: both; }
-    .session-actions { float: right; }
-    .session-name { display: inline-block; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #message { margin-top: 10px; }
-    button { margin-left: 5px; }
-    #errorLogs {
-      max-height: 100px;
-      overflow-y: auto;
-      background-color: #f8f8f8;
-      padding: 5px;
-      border: 1px solid #ccc;
-      display: none;
-    }
-    #viewErrorLogs {
-      margin-top: 10px;
-    }
-  </style>
+  <title>Enhanced Tab Session Manager</title>
+  <link rel="stylesheet" type="text/css" href="popup.css">
 </head>
 <body>
-  <h2>Tab Session Manager</h2>
-  <input type="text" id="sessionName" placeholder="Session Name (optional)" />
-  <button id="saveSession">Save Session</button>
-  <h3>Saved Sessions</h3>
-  <div id="sessionsList"></div>
-  <button id="viewErrorLogs">View Error Logs</button>
-  <div id="errorLogs"></div>
-  <div id="message"></div>
+  <div class="container">
+    <h1>Tab Session Manager</h1>
+    <div id="currentSessionContainer">
+      <h2>Current Session</h2>
+      <div id="currentSessionDetails">
+        <!-- Dynamic content -->
+      </div>
+    </div>
+    <div id="saveSessionContainer">
+      <h2>Save New Session</h2>
+      <input type="text" id="sessionName" placeholder="Enter session name (optional)">
+      <button id="saveSession">Save Session</button>
+    </div>
+    <h2>Saved Sessions</h2>
+    <div id="sessionsList">
+      <!-- Dynamic content -->
+    </div>
+    <div id="message"></div>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -2,35 +2,65 @@
 
 document.addEventListener('DOMContentLoaded', init);
 
-function init() {
+async function init() {
   document.getElementById('saveSession').addEventListener('click', saveSession);
-  document.getElementById('viewErrorLogs').addEventListener('click', toggleErrorLogs);
+  await checkCurrentSession();
   loadSessions();
+}
+
+async function checkCurrentSession() {
+  const currentWindow = await chrome.windows.getCurrent();
+  const windowId = currentWindow.id.toString();
+
+  chrome.runtime.sendMessage({ action: 'getSessionByWindowId', windowId: windowId }, (response) => {
+    if (response && response.success) {
+      if (response.session) {
+        displayCurrentSession(response.session);
+      } else {
+        // Show the save session container
+        document.getElementById('currentSessionContainer').style.display = 'none';
+        document.getElementById('saveSessionContainer').style.display = 'block';
+      }
+    } else {
+      showMessage('Error checking current session: ' + (response.error || 'Unknown error'), true);
+    }
+  });
+}
+
+function displayCurrentSession(session) {
+  const currentSessionDetails = document.getElementById('currentSessionDetails');
+  currentSessionDetails.innerHTML = `
+    <p><strong>Name:</strong> ${session.name}</p>
+    <input type="text" id="updateSessionName" placeholder="Enter new name (optional)">
+    <button id="updateSession">Update Session</button>
+  `;
+  document.getElementById('saveSessionContainer').style.display = 'none';
+
+  document.getElementById('updateSession').addEventListener('click', () => {
+    const newName = document.getElementById('updateSessionName').value.trim();
+    chrome.runtime.sendMessage({ action: 'updateSession', sessionId: session.sessionId, sessionName: newName }, (response) => {
+      if (response && response.success) {
+        showMessage('Session updated successfully.');
+        loadSessions();
+      } else {
+        showMessage('Error updating session: ' + (response.error || 'Unknown error'), true);
+      }
+    });
+  });
 }
 
 function saveSession() {
   const sessionName = document.getElementById('sessionName').value.trim();
+
   chrome.runtime.sendMessage({ action: 'saveSession', sessionName: sessionName }, (response) => {
     if (response && response.success) {
       showMessage('Session saved successfully.');
       document.getElementById('sessionName').value = '';
       loadSessions();
-    } else if (response.error === 'A session with this name already exists.') {
-      // Prompt user to confirm overwrite
-      if (confirm('A session with this name already exists. Do you want to overwrite it?')) {
-        // Send message to overwrite session
-        chrome.runtime.sendMessage({ action: 'overwriteSession', sessionName: sessionName }, (overwriteResponse) => {
-          if (overwriteResponse && overwriteResponse.success) {
-            showMessage('Session overwritten successfully.');
-            document.getElementById('sessionName').value = '';
-            loadSessions();
-          } else {
-            showMessage('Error saving session: ' + (overwriteResponse.error || 'Unknown error'), true);
-          }
-        });
-      } else {
-        showMessage('Session not saved.');
-      }
+      checkCurrentSession();
+    } else if (response.error === 'A session already exists for this window.') {
+      showMessage('A session already exists for this window. Please update it instead.', true);
+      checkCurrentSession();
     } else {
       showMessage('Error saving session: ' + (response.error || 'Unknown error'), true);
     }
@@ -103,6 +133,7 @@ function renameSession(sessionId, currentName) {
       if (response && response.success) {
         showMessage('Session renamed successfully.');
         loadSessions();
+        checkCurrentSession();
       } else {
         showMessage('Error renaming session: ' + (response.error || 'Unknown error'), true);
       }
@@ -118,6 +149,7 @@ function deleteSession(sessionId) {
       if (response && response.success) {
         showMessage('Session deleted successfully.');
         loadSessions();
+        checkCurrentSession();
       } else {
         showMessage('Error deleting session: ' + (response.error || 'Unknown error'), true);
       }
@@ -125,28 +157,9 @@ function deleteSession(sessionId) {
   }
 }
 
-function toggleErrorLogs() {
-  const errorLogsDiv = document.getElementById('errorLogs');
-  if (errorLogsDiv.style.display === 'none' || errorLogsDiv.style.display === '') {
-    // Fetch and display error logs
-    chrome.runtime.sendMessage({ action: 'getErrorLogs' }, (response) => {
-      if (response && response.success) {
-        errorLogsDiv.textContent = response.logs.join('\n');
-        errorLogsDiv.style.display = 'block';
-        document.getElementById('viewErrorLogs').textContent = 'Hide Error Logs';
-      } else {
-        showMessage('Error retrieving logs: ' + (response.error || 'Unknown error'), true);
-      }
-    });
-  } else {
-    errorLogsDiv.style.display = 'none';
-    document.getElementById('viewErrorLogs').textContent = 'View Error Logs';
-  }
-}
-
 function showMessage(message, isError = false) {
   const messageDiv = document.getElementById('message');
-  messageDiv.style.color = isError ? 'red' : 'green';
+  messageDiv.className = isError ? 'error' : 'success';
   messageDiv.textContent = message;
   setTimeout(() => {
     messageDiv.textContent = '';
