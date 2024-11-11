@@ -1,17 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Tab Session Manager",
-  "version": "1.0",
-  "description": "Save and manage browser tab sessions.",
-  "permissions": ["tabs", "storage"],
-  "background": {
-    "service_worker": "background.js"
-  },
+  "description": "Save, load, update, and rename tab sessions across Chrome windows.",
+  "version": "1.1",
+  "permissions": ["tabs", "storage", "notifications"],
   "action": {
     "default_popup": "popup.html",
+    "default_title": "Tab Session Manager",
     "default_icon": "icon.png"
   },
   "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
     "128": "icon.png"
+  },
+  "background": {
+    "service_worker": "background.js"
   }
 }
