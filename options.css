@@ -1,39 +1,41 @@
+/* Updated options.css */
+
 body {
-    font-family: 'Orbitron', sans-serif;
+    font-family: 'Comfortaa', sans-serif;
     margin: 0;
     padding: 10px;
-    background-color: #0d0d0d;
-    color: #00ffcc;
-  }
-  
-  .container {
+    background-color: #FFF7F0; /* Soft cream background */
+    color: #5D3A3A; /* Warm dark text */
+}
+
+.container {
     max-width: 600px;
     margin: 0 auto;
-    background: linear-gradient(135deg, #1f1f1f 0%, #0d0d0d 100%);
+    background-color: #FFEDE1; /* Light peach background */
     padding: 15px;
     border-radius: 8px;
-    border: 1px solid #00ffcc;
-    box-shadow: 0 0 10px #00ffcc;
-  }
-  
-  h1 {
+    border: 1px solid #FFC4C4; /* Soft pink border */
+    box-shadow: 0 0 10px rgba(255, 192, 203, 0.2); /* Light pink shadow */
+}
+
+h1 {
     text-align: center;
-    color: #00ffcc;
+    color: #D88C9A; /* Soft rose */
     font-size: 24px;
-    animation: neonGlow 1.5s alternate infinite;
-  }
-  
-  #importExportContainer {
+    animation: fadeIn 1s ease-in;
+}
+
+#importExportContainer {
     display: flex;
     justify-content: space-between;
     margin-top: 20px;
-  }
-  
-  #importExportContainer button {
+}
+
+#importExportContainer button {
     flex: 1;
     margin: 0 5px;
-    background-color: #00ffcc;
-    color: #0d0d0d;
+    background-color: #F6A5A5; /* Light coral */
+    color: #FFF; /* White text */
     border: none;
     padding: 8px 12px;
     border-radius: 4px;
@@ -41,37 +43,37 @@ body {
     font-weight: bold;
     white-space: nowrap;
     transition: all 0.3s ease;
-  }
-  
-  #message {
+}
+
+#importExportContainer button:hover {
+    background-color: #F28482; /* Coral */
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(242, 132, 130, 0.3);
+}
+
+#message {
     margin-top: 15px;
     text-align: center;
     padding: 8px;
     border-radius: 4px;
-  }
-  
-  .error {
-    color: #ff4d4d;
-    background: rgba(255, 77, 77, 0.1);
-  }
-  
-  .success {
-    color: #00ffcc;
-    background: rgba(0, 255, 204, 0.1);
-  }
-  
-  button:hover {
-    background-color: #00e6b8;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 5px rgba(0, 255, 204, 0.3);
-  }
-  
-  @keyframes neonGlow {
+}
+
+.error {
+    color: #D9534F; /* Soft red */
+    background: rgba(217, 83, 79, 0.1);
+}
+
+.success {
+    color: #5CB85C; /* Soft green */
+    background: rgba(92, 184, 92, 0.1);
+}
+
+/* Animation for header */
+@keyframes fadeIn {
     from {
-      text-shadow: 0 0 5px #00ffcc, 0 0 10px #00ffcc;
+        opacity: 0;
     }
     to {
-      text-shadow: 0 0 20px #00e6b8, 0 0 30px #00e6b8;
+        opacity: 1;
     }
-  }
-  
+}
