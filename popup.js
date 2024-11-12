@@ -2,81 +2,131 @@
 
 document.addEventListener('DOMContentLoaded', init);
 
+// Message listener for state changes
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'stateChanged') {
+    refreshUI();
+  }
+});
+
+// Move these event listeners to ensure they're registered
+chrome.tabs.onCreated.addListener(() => refreshUI());
+chrome.tabs.onRemoved.addListener(() => refreshUI());
+chrome.tabs.onUpdated.addListener(() => refreshUI());
+chrome.windows.onCreated.addListener(() => refreshUI());
+chrome.windows.onRemoved.addListener(() => refreshUI());
+chrome.windows.onFocusChanged.addListener(() => refreshUI());
+
+async function refreshUI() {
+  try {
+    await checkCurrentSession();
+    await loadSessions();
+  } catch (error) {
+    console.error('Error refreshing UI:', error);
+  }
+}
+
 async function init() {
   document.getElementById('saveSession').addEventListener('click', saveSession);
-  await checkCurrentSession();
-  loadSessions();
+  await refreshUI();
 }
 
 async function checkCurrentSession() {
-  const currentWindow = await chrome.windows.getCurrent();
+  const currentWindow = await chrome.windows.getCurrent({ windowTypes: ['normal'] });
   const windowId = currentWindow.id.toString();
 
-  chrome.runtime.sendMessage({ action: 'getSessionByWindowId', windowId: windowId }, (response) => {
-    if (response && response.success) {
-      if (response.session) {
-        displayCurrentSession(response.session);
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ action: 'getSessionByWindowId', windowId: windowId }, (response) => {
+      if (response && response.success) {
+        if (response.session) {
+          displayCurrentSession(response.session);
+          document.getElementById('currentSessionContainer').style.display = 'block';
+          document.getElementById('saveSessionContainer').style.display = 'none';
+        } else {
+          document.getElementById('currentSessionContainer').style.display = 'none';
+          document.getElementById('saveSessionContainer').style.display = 'block';
+        }
       } else {
-        // Show the save session container
-        document.getElementById('currentSessionContainer').style.display = 'none';
-        document.getElementById('saveSessionContainer').style.display = 'block';
+        showMessage('Error checking current session: ' + (response.error || 'Unknown error'), true);
       }
-    } else {
-      showMessage('Error checking current session: ' + (response.error || 'Unknown error'), true);
-    }
+      resolve();
+    });
   });
 }
 
 function displayCurrentSession(session) {
   const currentSessionDetails = document.getElementById('currentSessionDetails');
-  currentSessionDetails.innerHTML = `
-    <p><strong>Name:</strong> ${session.name}</p>
-    <input type="text" id="updateSessionName" placeholder="Enter new name (optional)">
-    <button id="updateSession">Update Session</button>
-  `;
-  document.getElementById('saveSessionContainer').style.display = 'none';
-
-  document.getElementById('updateSession').addEventListener('click', () => {
-    const newName = document.getElementById('updateSessionName').value.trim();
-    chrome.runtime.sendMessage({ action: 'updateSession', sessionId: session.sessionId, sessionName: newName }, (response) => {
+  
+  // Clear previous content and event listeners
+  currentSessionDetails.innerHTML = '';
+  
+  // Create and append name paragraph
+  const namePara = document.createElement('p');
+  namePara.innerHTML = `<strong>Name:</strong> ${session.name}`;
+  currentSessionDetails.appendChild(namePara);
+  
+  // Create and append input
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'updateSessionName';
+  input.placeholder = 'Enter new name (optional)';
+  currentSessionDetails.appendChild(input);
+  
+  // Create and append button
+  const button = document.createElement('button');
+  button.id = 'updateSession';
+  button.textContent = 'Update Session';
+  button.addEventListener('click', () => {
+    const newName = input.value.trim();
+    chrome.runtime.sendMessage({ 
+      action: 'updateSession', 
+      sessionId: session.sessionId, 
+      sessionName: newName 
+    }, (response) => {
       if (response && response.success) {
         showMessage('Session updated successfully.');
-        loadSessions();
-        checkCurrentSession(); // Update the current session display
+        refreshUI();
       } else {
         showMessage('Error updating session: ' + (response.error || 'Unknown error'), true);
       }
     });
   });
+  currentSessionDetails.appendChild(button);
 }
 
 function saveSession() {
-  const sessionName = document.getElementById('sessionName').value.trim();
-
-  chrome.runtime.sendMessage({ action: 'saveSession', sessionName: sessionName }, (response) => {
-    if (response && response.success) {
-      showMessage('Session saved successfully.');
-      document.getElementById('sessionName').value = '';
-      loadSessions();
-      checkCurrentSession();
-    } else if (response.error === 'A session already exists for this window.') {
-      showMessage('A session already exists for this window. Please update it instead.', true);
-      checkCurrentSession();
-    } else {
-      showMessage('Error saving session: ' + (response.error || 'Unknown error'), true);
-    }
+  chrome.windows.getCurrent({ windowTypes: ['normal'] }, (currentWindow) => {
+    const sessionName = document.getElementById('sessionName').value.trim();
+    
+    chrome.runtime.sendMessage({ 
+      action: 'saveSession', 
+      sessionName: sessionName,
+      windowId: currentWindow.id.toString()
+    }, (response) => {
+      if (response && response.success) {
+        showMessage('Session saved successfully.');
+        document.getElementById('sessionName').value = '';
+        refreshUI();
+      } else if (response.error === 'A session already exists for this window.') {
+        showMessage('A session already exists for this window. Please update it instead.', true);
+        refreshUI();
+      } else {
+        showMessage('Error saving session: ' + (response.error || 'Unknown error'), true);
+      }
+    });
   });
 }
 
 async function loadSessions() {
-  chrome.runtime.sendMessage({ action: 'getSessions' }, async (response) => {
+  const currentWindow = await chrome.windows.getCurrent({ windowTypes: ['normal'] });
+  const currentWindowId = currentWindow.id.toString();
+
+  chrome.runtime.sendMessage({ action: 'getSessions' }, (response) => {
     if (response && response.success) {
       const sessions = response.sessions;
-      const currentWindow = await chrome.windows.getCurrent();
-      const currentWindowId = currentWindow.id.toString();
 
       // Get all open window IDs
-      chrome.windows.getAll({}, (windows) => {
+      chrome.windows.getAll({ windowTypes: ['normal'] }, (windows) => {
         const openWindowIds = windows.map(win => win.id.toString());
 
         // Separate sessions into Active and Saved
@@ -177,9 +227,11 @@ function displaySavedSessions(savedSessions) {
 }
 
 function switchToWindow(windowId) {
-  chrome.windows.update(parseInt(windowId), { focused: true }, (window) => {
+  chrome.windows.update(parseInt(windowId), { focused: true }, () => {
     if (chrome.runtime.lastError) {
       showMessage('Error switching to window: ' + chrome.runtime.lastError.message, true);
+    } else {
+      self.close();
     }
   });
 }
@@ -200,8 +252,7 @@ function renameSession(sessionId, currentName) {
     chrome.runtime.sendMessage({ action: 'renameSession', sessionId: sessionId, newName: newName.trim() }, (response) => {
       if (response && response.success) {
         showMessage('Session renamed successfully.');
-        loadSessions();
-        checkCurrentSession();
+        refreshUI();
       } else {
         showMessage('Error renaming session: ' + (response.error || 'Unknown error'), true);
       }
@@ -216,8 +267,7 @@ function deleteSession(sessionId) {
     chrome.runtime.sendMessage({ action: 'deleteSession', sessionId: sessionId }, (response) => {
       if (response && response.success) {
         showMessage('Session deleted successfully.');
-        loadSessions();
-        checkCurrentSession();
+        refreshUI();
       } else {
         showMessage('Error deleting session: ' + (response.error || 'Unknown error'), true);
       }
