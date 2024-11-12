@@ -144,6 +144,18 @@ button:hover {
   background: rgba(0, 255, 204, 0.1);
 }
 
+/* Import/Export Container Styles */
+#importExportContainer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+#importExportContainer button {
+  flex: 1;
+  margin: 0 5px;
+}
+
 /* Animations */
 @keyframes neonGlow {
   from {

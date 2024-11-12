@@ -1,0 +1,77 @@
+body {
+    font-family: 'Orbitron', sans-serif;
+    margin: 0;
+    padding: 10px;
+    background-color: #0d0d0d;
+    color: #00ffcc;
+  }
+  
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #1f1f1f 0%, #0d0d0d 100%);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #00ffcc;
+    box-shadow: 0 0 10px #00ffcc;
+  }
+  
+  h1 {
+    text-align: center;
+    color: #00ffcc;
+    font-size: 24px;
+    animation: neonGlow 1.5s alternate infinite;
+  }
+  
+  #importExportContainer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+  }
+  
+  #importExportContainer button {
+    flex: 1;
+    margin: 0 5px;
+    background-color: #00ffcc;
+    color: #0d0d0d;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    white-space: nowrap;
+    transition: all 0.3s ease;
+  }
+  
+  #message {
+    margin-top: 15px;
+    text-align: center;
+    padding: 8px;
+    border-radius: 4px;
+  }
+  
+  .error {
+    color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.1);
+  }
+  
+  .success {
+    color: #00ffcc;
+    background: rgba(0, 255, 204, 0.1);
+  }
+  
+  button:hover {
+    background-color: #00e6b8;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0, 255, 204, 0.3);
+  }
+  
+  @keyframes neonGlow {
+    from {
+      text-shadow: 0 0 5px #00ffcc, 0 0 10px #00ffcc;
+    }
+    to {
+      text-shadow: 0 0 20px #00e6b8, 0 0 30px #00e6b8;
+    }
+  }
+  
