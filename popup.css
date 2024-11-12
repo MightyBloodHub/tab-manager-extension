@@ -1,118 +1,167 @@
 /* popup.css */
 
 body {
-    font-family: 'Orbitron', sans-serif;
-    margin: 0;
-    padding: 10px;
-    background-color: #0d0d0d;
-    color: #00ffcc;
-    width: 400px;
+  font-family: 'Orbitron', sans-serif;
+  margin: 0;
+  padding: 10px;
+  background-color: #0d0d0d;
+  color: #00ffcc;
+  width: 400px;
+}
+
+.container {
+  background: linear-gradient(135deg, #1f1f1f 0%, #0d0d0d 100%);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #00ffcc;
+  box-shadow: 0 0 10px #00ffcc;
+}
+
+h1 {
+  text-align: center;
+  color: #00ffcc;
+  font-size: 24px;
+}
+
+h2 {
+  margin-top: 20px;
+  color: #00ffcc;
+  font-size: 20px;
+}
+
+/* Enhanced Current Session Container Styles */
+#currentSessionContainer {
+  border: 1px solid #00e6b8;
+  padding: 15px;
+  border-radius: 8px;
+  background: rgba(0, 255, 204, 0.05);
+  margin-bottom: 20px;
+}
+
+#currentSessionDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+#currentSessionDetails p {
+  margin: 0;
+  padding: 8px;
+  background: rgba(31, 31, 31, 0.5);
+  border-radius: 4px;
+}
+
+.session-actions {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.update-section {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.update-section input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #00ffcc;
+  background-color: #1f1f1f;
+  color: #00ffcc;
+  min-width: 0; /* Prevents input from overflowing */
+}
+
+/* General Button Styles */
+button {
+  background-color: #00ffcc;
+  color: #0d0d0d;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  background-color: #00e6b8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 255, 204, 0.3);
+}
+
+/* Session List Styles */
+#saveSessionContainer, #activeSessionsContainer {
+  margin-bottom: 20px;
+}
+
+#sessionName {
+  width: calc(100% - 20px);
+  padding: 8px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  border: 1px solid #00ffcc;
+  background-color: #1f1f1f;
+  color: #00ffcc;
+}
+
+.session {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #333;
+  background: rgba(31, 31, 31, 0.3);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.session-name {
+  flex: 1;
+  font-size: 16px;
+  color: #00ffcc;
+  margin-right: 10px;
+}
+
+/* Message Styles */
+#message {
+  margin-top: 15px;
+  text-align: center;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.error {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+}
+
+.success {
+  color: #00ffcc;
+  background: rgba(0, 255, 204, 0.1);
+}
+
+/* Animations */
+@keyframes neonGlow {
+  from {
+      text-shadow: 0 0 5px #00ffcc, 0 0 10px #00ffcc;
   }
-  
-  .container {
-    background: linear-gradient(135deg, #1f1f1f 0%, #0d0d0d 100%);
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px solid #00ffcc;
-    box-shadow: 0 0 10px #00ffcc;
+  to {
+      text-shadow: 0 0 20px #00e6b8, 0 0 30px #00e6b8;
   }
-  
-  h1 {
-    text-align: center;
-    color: #00ffcc;
-    font-size: 24px;
-  }
-  
-  h2 {
-    margin-top: 20px;
-    color: #00ffcc;
-    font-size: 20px;
-  }
-  
-  #currentSessionContainer, #saveSessionContainer, #activeSessionsContainer {
-    margin-bottom: 20px;
-  }
-  
-  #sessionName {
-    width: calc(100% - 20px);
-    padding: 8px;
-    margin-bottom: 10px;
-    border-radius: 4px;
-    border: 1px solid #00ffcc;
-    background-color: #1f1f1f;
-    color: #00ffcc;
-  }
-  
-  button {
-    background-color: #00ffcc;
-    color: #0d0d0d;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-  }
-  
-  button:hover {
-    background-color: #00e6b8;
-  }
-  
-  .session {
-    display: flex;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #333;
-  }
-  
-  .session-name {
-    flex: 1;
-    font-size: 16px;
-    color: #00ffcc;
-  }
-  
-  .session-actions button {
-    margin-left: 5px;
-  }
-  
-  #message {
-    margin-top: 15px;
-    text-align: center;
-  }
-  
-  .error {
-    color: #ff4d4d;
-  }
-  
-  .success {
-    color: #00ffcc;
-  }
-  
-  /* Add futuristic animations */
-  @keyframes neonGlow {
-    from {
-      text-shadow: 0 0 5px #00ffcc, 0 0 10px #00ffcc, 0 0 20px #00ffcc, 0 0 40px #00ffcc;
-    }
-    to {
-      text-shadow: 0 0 20px #00e6b8, 0 0 30px #00e6b8, 0 0 40px #00e6b8, 0 0 50px #00e6b8;
-    }
-  }
-  
-  h1, h2 {
-    animation: neonGlow 1.5s alternate infinite;
-  }
-  
-  .session-name {
-    transition: color 0.3s;
-  }
-  
-  .session-name:hover {
-    color: #00e6b8;
-  }
-  
-  /* Highlight current session */
-  #currentSessionContainer {
-    border: 1px solid #00e6b8;
-    padding: 10px;
-    border-radius: 8px;
-  }
-  
+}
+
+h1, h2 {
+  animation: neonGlow 1.5s alternate infinite;
+}
+
+.session-name {
+  transition: color 0.3s;
+}
+
+.session-name:hover {
+  color: #00e6b8;
+}
