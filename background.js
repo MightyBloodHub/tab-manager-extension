@@ -214,17 +214,56 @@ async function restoreSessionTabs(sessionId) {
 
   // Get current window tabs
   const currentWindow = await chrome.windows.get(parseInt(sessionId), { populate: true });
-  const existingUrls = new Set(currentWindow.tabs.map(tab => tab.url));
+  const existingTabs = currentWindow.tabs;
   
-  // Find tabs that need to be restored (exist in session but not in current window)
-  const tabsToRestore = session.tabs.filter(tab => !existingUrls.has(tab.url));
+  // Create a map of URLs to existing tab positions
+  const existingUrlToTabMap = new Map(
+    existingTabs.map(tab => [tab.url, { id: tab.id, index: tab.index }])
+  );
   
-  // Create the missing tabs in the current window
-  for (const tab of tabsToRestore) {
-    await chrome.tabs.create({
-      windowId: parseInt(sessionId),
-      url: tab.url,
-      active: false // Don't switch to the new tab
-    });
+  // Create a list of all operations to perform
+  const operations = [];
+  let maxIndex = existingTabs.length - 1;
+
+  // Go through the session tabs in order
+  for (let desiredIndex = 0; desiredIndex < session.tabs.length; desiredIndex++) {
+    const sessionTab = session.tabs[desiredIndex];
+    const existingTab = existingUrlToTabMap.get(sessionTab.url);
+
+    if (!existingTab) {
+      // Tab needs to be created
+      operations.push({
+        type: 'create',
+        url: sessionTab.url,
+        index: desiredIndex
+      });
+      maxIndex = Math.max(maxIndex, desiredIndex);
+    } else if (existingTab.index !== desiredIndex) {
+      // Tab needs to be moved
+      operations.push({
+        type: 'move',
+        tabId: existingTab.id,
+        index: desiredIndex
+      });
+    }
+  }
+
+  // Execute all operations
+  for (const op of operations) {
+    if (op.type === 'create') {
+      await chrome.tabs.create({
+        windowId: parseInt(sessionId),
+        url: op.url,
+        index: op.index,
+        active: false
+      });
+    } else if (op.type === 'move') {
+      try {
+        await chrome.tabs.move(op.tabId, { index: op.index });
+      } catch (error) {
+        console.error('Error moving tab:', error);
+        // Continue with other operations if one fails
+      }
+    }
   }
 }
