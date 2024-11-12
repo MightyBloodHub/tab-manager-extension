@@ -1,0 +1,824 @@
+
+=== background.js ===
+
+// background.js
+
+// Initialize the sessions object if it doesn't exist
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.get('sessions', (data) => {
+    if (!data.sessions) {
+      chrome.storage.local.set({ sessions: {} });
+    }
+  });
+});
+
+// Event listeners for tab and window changes
+chrome.tabs.onCreated.addListener(notifyPopupOfChange);
+chrome.tabs.onRemoved.addListener(notifyPopupOfChange);
+chrome.tabs.onUpdated.addListener(notifyPopupOfChange);
+chrome.windows.onCreated.addListener(notifyPopupOfChange);
+chrome.windows.onRemoved.addListener(notifyPopupOfChange);
+chrome.windows.onFocusChanged.addListener(notifyPopupOfChange);
+
+function notifyPopupOfChange() {
+  // Check for active connections before sending message
+  chrome.runtime.sendMessage({ action: 'stateChanged' }).catch(() => {
+    // Suppress the error when popup is closed
+  });
+}
+
+// Listen for messages from the popup script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'saveSession') {
+    saveSession(request.sessionName, request.windowId).then((sessionId) => {
+      sendResponse({ success: true, sessionId: sessionId });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  } else if (request.action === 'updateSession') {
+    updateSession(request.sessionId, request.sessionName).then(() => {
+      sendResponse({ success: true });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  } else if (request.action === 'loadSession') {
+    loadSession(request.sessionId).then(() => {
+      sendResponse({ success: true });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  } else if (request.action === 'renameSession') {
+    renameSession(request.sessionId, request.newName).then(() => {
+      sendResponse({ success: true });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  } else if (request.action === 'getSessions') {
+    getSessions().then((sessions) => {
+      sendResponse({ success: true, sessions: sessions });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  } else if (request.action === 'deleteSession') {
+    deleteSession(request.sessionId).then(() => {
+      sendResponse({ success: true });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  } else if (request.action === 'getSessionByWindowId') {
+    getSessionByWindowId(request.windowId).then((session) => {
+      sendResponse({ success: true, session: session });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  } else if (request.action === 'restoreSessionTabs') {
+    restoreSessionTabs(request.sessionId).then(() => {
+      sendResponse({ success: true });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
+});
+
+// Function implementations
+
+async function saveSession(sessionName, windowId) {
+  // If sessionName is empty, default to current date and timestamp
+  if (!sessionName || sessionName.trim() === '') {
+    const date = new Date();
+    sessionName = date.toLocaleString();
+  }
+
+  // Use the provided windowId or get the current window
+  const currentWindow = await chrome.windows.get(parseInt(windowId), { populate: true });
+  const tabs = currentWindow.tabs.map(tab => ({ url: tab.url, title: tab.title }));
+
+  let sessions = await getSessions();
+  windowId = windowId.toString();
+
+  // Check if a session already exists for this window
+  if (sessions[windowId]) {
+    throw new Error('A session already exists for this window.');
+  }
+
+  // Create new session
+  sessions[windowId] = {
+    sessionId: windowId,
+    name: sessionName,
+    tabs: tabs,
+    windowId: currentWindow.id
+  };
+
+  await chrome.storage.local.set({ sessions: sessions });
+  return windowId;
+}
+
+async function updateSession(sessionId, sessionName) {
+  const sessions = await getSessions();
+  
+  if (!sessions[sessionId]) {
+    throw new Error('Session not found for update.');
+  }
+
+  // Get current window state
+  const currentWindow = await chrome.windows.get(parseInt(sessionId), { populate: true });
+  const tabs = currentWindow.tabs.map(tab => ({ url: tab.url, title: tab.title }));
+
+  // Update the session
+  sessions[sessionId].tabs = tabs;
+  if (sessionName && sessionName.trim() !== '') {
+    sessions[sessionId].name = sessionName.trim();
+  }
+
+  await chrome.storage.local.set({ sessions: sessions });
+  
+  // Notify all popups of the state change
+  chrome.runtime.sendMessage({ action: 'stateChanged' });
+}
+
+async function loadSession(sessionId) {
+  const sessions = await getSessions();
+  const session = sessions[sessionId];
+
+  if (!session) {
+    throw new Error('Session not found');
+  }
+
+  // Create a new window with the session's tabs
+  const urls = session.tabs.map(tab => tab.url);
+  await chrome.windows.create({ url: urls });
+}
+
+async function renameSession(sessionId, newName) {
+  if (!newName || newName.trim() === '') {
+    throw new Error('New session name cannot be empty.');
+  }
+  let sessions = await getSessions();
+  if (!sessions[sessionId]) {
+    throw new Error('Session not found');
+  }
+  // Check for duplicate session names
+  for (let id in sessions) {
+    if (sessions[id].name === newName && id !== sessionId) {
+      throw new Error('A session with this name already exists.');
+    }
+  }
+  sessions[sessionId].name = newName;
+  await chrome.storage.local.set({ sessions: sessions });
+}
+
+async function getSessions() {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get('sessions', (data) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve(data.sessions || {});
+      }
+    });
+  });
+}
+
+async function deleteSession(sessionId) {
+  let sessions = await getSessions();
+  if (sessions[sessionId]) {
+    delete sessions[sessionId];
+    await chrome.storage.local.set({ sessions: sessions });
+  } else {
+    throw new Error('Session not found');
+  }
+}
+
+async function getSessionByWindowId(windowId) {
+  let sessions = await getSessions();
+  if (sessions[windowId]) {
+    return sessions[windowId];
+  } else {
+    return null;
+  }
+}
+
+// New function to restore tabs from a session
+async function restoreSessionTabs(sessionId) {
+  const sessions = await getSessions();
+  const session = sessions[sessionId];
+  
+  if (!session) {
+    throw new Error('Session not found');
+  }
+
+  // Get current window tabs
+  const currentWindow = await chrome.windows.get(parseInt(sessionId), { populate: true });
+  const existingTabs = currentWindow.tabs;
+  
+  // Create a map of URLs to existing tab positions
+  const existingUrlToTabMap = new Map(
+    existingTabs.map(tab => [tab.url, { id: tab.id, index: tab.index }])
+  );
+  
+  // Create a list of all operations to perform
+  const operations = [];
+  let maxIndex = existingTabs.length - 1;
+
+  // Go through the session tabs in order
+  for (let desiredIndex = 0; desiredIndex < session.tabs.length; desiredIndex++) {
+    const sessionTab = session.tabs[desiredIndex];
+    const existingTab = existingUrlToTabMap.get(sessionTab.url);
+
+    if (!existingTab) {
+      // Tab needs to be created
+      operations.push({
+        type: 'create',
+        url: sessionTab.url,
+        index: desiredIndex
+      });
+      maxIndex = Math.max(maxIndex, desiredIndex);
+    } else if (existingTab.index !== desiredIndex) {
+      // Tab needs to be moved
+      operations.push({
+        type: 'move',
+        tabId: existingTab.id,
+        index: desiredIndex
+      });
+    }
+  }
+
+  // Execute all operations
+  for (const op of operations) {
+    if (op.type === 'create') {
+      await chrome.tabs.create({
+        windowId: parseInt(sessionId),
+        url: op.url,
+        index: op.index,
+        active: false
+      });
+    } else if (op.type === 'move') {
+      try {
+        await chrome.tabs.move(op.tabId, { index: op.index });
+      } catch (error) {
+        console.error('Error moving tab:', error);
+        // Continue with other operations if one fails
+      }
+    }
+  }
+}
+
+=== manifest.json ===
+
+{
+  "manifest_version": 3,
+  "name": "Enhanced Tab Session Manager",
+  "description": "Advanced tab session management with futuristic UI/UX.",
+  "version": "2.1",
+  "permissions": ["tabs", "storage", "notifications"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Enhanced Tab Session Manager",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
+
+
+=== popup.html ===
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Enhanced Tab Session Manager</title>
+  <link rel="stylesheet" type="text/css" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Tab Session Manager</h1>
+    <div id="currentSessionContainer">
+      <h2>Current Session</h2>
+      <div id="currentSessionDetails">
+        <!-- Dynamic content -->
+      </div>
+    </div>
+    <div id="saveSessionContainer">
+      <h2>Save New Session</h2>
+      <input type="text" id="sessionName" placeholder="Enter session name (optional)">
+      <button id="saveSession">Save Session</button>
+    </div>
+    <div id="activeSessionsContainer">
+      <h2>Active Sessions</h2>
+      <div id="activeSessionsList">
+        <!-- Dynamic content -->
+      </div>
+    </div>
+    <h2>Saved Sessions</h2>
+    <div id="sessionsList">
+      <!-- Dynamic content -->
+    </div>
+    <div id="message"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
+
+
+=== popup.js ===
+
+// popup.js
+
+document.addEventListener('DOMContentLoaded', init);
+
+// Message listener for state changes
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'stateChanged') {
+    refreshUI();
+  }
+});
+
+// Move these event listeners to ensure they're registered
+chrome.tabs.onCreated.addListener(() => refreshUI());
+chrome.tabs.onRemoved.addListener(() => refreshUI());
+chrome.tabs.onUpdated.addListener(() => refreshUI());
+chrome.windows.onCreated.addListener(() => refreshUI());
+chrome.windows.onRemoved.addListener(() => refreshUI());
+chrome.windows.onFocusChanged.addListener(() => refreshUI());
+
+async function refreshUI() {
+  try {
+    await checkCurrentSession();
+    await loadSessions();
+  } catch (error) {
+    console.error('Error refreshing UI:', error);
+  }
+}
+
+async function init() {
+  document.getElementById('saveSession').addEventListener('click', saveSession);
+  await refreshUI();
+}
+
+async function checkCurrentSession() {
+  const currentWindow = await chrome.windows.getCurrent({ windowTypes: ['normal'] });
+  const windowId = currentWindow.id.toString();
+
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ action: 'getSessionByWindowId', windowId: windowId }, (response) => {
+      if (response && response.success) {
+        if (response.session) {
+          displayCurrentSession(response.session);
+          document.getElementById('currentSessionContainer').style.display = 'block';
+          document.getElementById('saveSessionContainer').style.display = 'none';
+        } else {
+          document.getElementById('currentSessionContainer').style.display = 'none';
+          document.getElementById('saveSessionContainer').style.display = 'block';
+        }
+      } else {
+        showMessage('Error checking current session: ' + (response.error || 'Unknown error'), true);
+      }
+      resolve();
+    });
+  });
+}
+
+function displayCurrentSession(session) {
+  const currentSessionDetails = document.getElementById('currentSessionDetails');
+  
+  // Clear previous content and event listeners
+  currentSessionDetails.innerHTML = '';
+  
+  // Create and append name paragraph
+  const namePara = document.createElement('p');
+  namePara.innerHTML = `<strong>Name:</strong> ${session.name}`;
+  currentSessionDetails.appendChild(namePara);
+  
+  // Create actions container
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'session-actions';
+  
+  // Create reload button
+  const reloadBtn = document.createElement('button');
+  reloadBtn.textContent = 'Restore Tabs';
+  reloadBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ 
+      action: 'restoreSessionTabs', 
+      sessionId: session.sessionId 
+    }, (response) => {
+      if (response && response.success) {
+        showMessage('Session tabs restored successfully.');
+      } else {
+        showMessage('Error restoring tabs: ' + (response.error || 'Unknown error'), true);
+      }
+    });
+  });
+  actionsDiv.appendChild(reloadBtn);
+  
+  // Create update section
+  const updateSection = document.createElement('div');
+  updateSection.className = 'update-section';
+  
+  // Create and append input
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'updateSessionName';
+  input.placeholder = 'Enter new name (optional)';
+  updateSection.appendChild(input);
+  
+  // Create and append update button
+  const updateBtn = document.createElement('button');
+  updateBtn.id = 'updateSession';
+  updateBtn.textContent = 'Update Session';
+  updateBtn.addEventListener('click', () => {
+    const newName = input.value.trim();
+    chrome.runtime.sendMessage({ 
+      action: 'updateSession', 
+      sessionId: session.sessionId, 
+      sessionName: newName 
+    }, (response) => {
+      if (response && response.success) {
+        showMessage('Session updated successfully.');
+        refreshUI();
+      } else {
+        showMessage('Error updating session: ' + (response.error || 'Unknown error'), true);
+      }
+    });
+  });
+  updateSection.appendChild(updateBtn);
+  
+  // Append all sections
+  currentSessionDetails.appendChild(actionsDiv);
+  currentSessionDetails.appendChild(updateSection);
+}
+
+function saveSession() {
+  chrome.windows.getCurrent({ windowTypes: ['normal'] }, (currentWindow) => {
+    const sessionName = document.getElementById('sessionName').value.trim();
+    
+    chrome.runtime.sendMessage({ 
+      action: 'saveSession', 
+      sessionName: sessionName,
+      windowId: currentWindow.id.toString()
+    }, (response) => {
+      if (response && response.success) {
+        showMessage('Session saved successfully.');
+        document.getElementById('sessionName').value = '';
+        refreshUI();
+      } else if (response.error === 'A session already exists for this window.') {
+        showMessage('A session already exists for this window. Please update it instead.', true);
+        refreshUI();
+      } else {
+        showMessage('Error saving session: ' + (response.error || 'Unknown error'), true);
+      }
+    });
+  });
+}
+
+async function loadSessions() {
+  const currentWindow = await chrome.windows.getCurrent({ windowTypes: ['normal'] });
+  const currentWindowId = currentWindow.id.toString();
+
+  chrome.runtime.sendMessage({ action: 'getSessions' }, (response) => {
+    if (response && response.success) {
+      const sessions = response.sessions;
+
+      // Get all open window IDs
+      chrome.windows.getAll({ windowTypes: ['normal'] }, (windows) => {
+        const openWindowIds = windows.map(win => win.id.toString());
+
+        // Separate sessions into Active and Saved
+        const activeSessions = [];
+        const savedSessions = [];
+
+        for (let sessionId in sessions) {
+          const session = sessions[sessionId];
+          if (sessionId === currentWindowId) {
+            continue; // Skip current session
+          } else if (openWindowIds.includes(sessionId)) {
+            activeSessions.push(session);
+          } else {
+            savedSessions.push(session);
+          }
+        }
+
+        displayActiveSessions(activeSessions);
+        displaySavedSessions(savedSessions);
+      });
+    } else {
+      showMessage('Error loading sessions: ' + (response.error || 'Unknown error'), true);
+    }
+  });
+}
+
+function displayActiveSessions(activeSessions) {
+  const activeSessionsList = document.getElementById('activeSessionsList');
+  activeSessionsList.innerHTML = '';
+
+  if (activeSessions.length === 0) {
+    document.getElementById('activeSessionsContainer').style.display = 'none';
+    return;
+  } else {
+    document.getElementById('activeSessionsContainer').style.display = 'block';
+  }
+
+  activeSessions.forEach(session => {
+    const sessionDiv = document.createElement('div');
+    sessionDiv.className = 'session';
+
+    const sessionNameSpan = document.createElement('span');
+    sessionNameSpan.className = 'session-name';
+    sessionNameSpan.textContent = session.name;
+    sessionDiv.appendChild(sessionNameSpan);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'session-actions';
+
+    // Switch button
+    const switchBtn = document.createElement('button');
+    switchBtn.textContent = 'Switch';
+    switchBtn.addEventListener('click', () => switchToWindow(session.windowId));
+    actionsDiv.appendChild(switchBtn);
+
+    sessionDiv.appendChild(actionsDiv);
+    activeSessionsList.appendChild(sessionDiv);
+  });
+}
+
+function displaySavedSessions(savedSessions) {
+  const sessionsList = document.getElementById('sessionsList');
+  sessionsList.innerHTML = '';
+
+  savedSessions.forEach(session => {
+    const sessionDiv = document.createElement('div');
+    sessionDiv.className = 'session';
+
+    const sessionNameSpan = document.createElement('span');
+    sessionNameSpan.className = 'session-name';
+    sessionNameSpan.textContent = session.name;
+    sessionDiv.appendChild(sessionNameSpan);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'session-actions';
+
+    // Load button
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = 'Load';
+    loadBtn.addEventListener('click', () => loadSession(session.sessionId));
+    actionsDiv.appendChild(loadBtn);
+
+    // Rename button
+    const renameBtn = document.createElement('button');
+    renameBtn.textContent = 'Rename';
+    renameBtn.addEventListener('click', () => renameSession(session.sessionId, session.name));
+    actionsDiv.appendChild(renameBtn);
+
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => deleteSession(session.sessionId));
+    actionsDiv.appendChild(deleteBtn);
+
+    sessionDiv.appendChild(actionsDiv);
+    sessionsList.appendChild(sessionDiv);
+  });
+}
+
+function switchToWindow(windowId) {
+  chrome.windows.update(parseInt(windowId), { focused: true }, () => {
+    if (chrome.runtime.lastError) {
+      showMessage('Error switching to window: ' + chrome.runtime.lastError.message, true);
+    } else {
+      self.close();
+    }
+  });
+}
+
+function loadSession(sessionId) {
+  chrome.runtime.sendMessage({ action: 'loadSession', sessionId: sessionId }, (response) => {
+    if (response && response.success) {
+      showMessage('Session loaded successfully.');
+    } else {
+      showMessage('Error loading session: ' + (response.error || 'Unknown error'), true);
+    }
+  });
+}
+
+function renameSession(sessionId, currentName) {
+  const newName = prompt('Enter new session name:', currentName);
+  if (newName && newName.trim() !== '') {
+    chrome.runtime.sendMessage({ action: 'renameSession', sessionId: sessionId, newName: newName.trim() }, (response) => {
+      if (response && response.success) {
+        showMessage('Session renamed successfully.');
+        refreshUI();
+      } else {
+        showMessage('Error renaming session: ' + (response.error || 'Unknown error'), true);
+      }
+    });
+  } else {
+    showMessage('Rename cancelled.');
+  }
+}
+
+function deleteSession(sessionId) {
+  if (confirm('Are you sure you want to delete this session?')) {
+    chrome.runtime.sendMessage({ action: 'deleteSession', sessionId: sessionId }, (response) => {
+      if (response && response.success) {
+        showMessage('Session deleted successfully.');
+        refreshUI();
+      } else {
+        showMessage('Error deleting session: ' + (response.error || 'Unknown error'), true);
+      }
+    });
+  }
+}
+
+function showMessage(message, isError = false) {
+  const messageDiv = document.getElementById('message');
+  messageDiv.className = isError ? 'error' : 'success';
+  messageDiv.textContent = message;
+  setTimeout(() => {
+    messageDiv.textContent = '';
+  }, 3000);
+}
+
+
+=== popup.css ===
+
+/* popup.css */
+
+body {
+  font-family: 'Orbitron', sans-serif;
+  margin: 0;
+  padding: 10px;
+  background-color: #0d0d0d;
+  color: #00ffcc;
+  width: 400px;
+}
+
+.container {
+  background: linear-gradient(135deg, #1f1f1f 0%, #0d0d0d 100%);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #00ffcc;
+  box-shadow: 0 0 10px #00ffcc;
+}
+
+h1 {
+  text-align: center;
+  color: #00ffcc;
+  font-size: 24px;
+}
+
+h2 {
+  margin-top: 20px;
+  color: #00ffcc;
+  font-size: 20px;
+}
+
+/* Enhanced Current Session Container Styles */
+#currentSessionContainer {
+  border: 1px solid #00e6b8;
+  padding: 15px;
+  border-radius: 8px;
+  background: rgba(0, 255, 204, 0.05);
+  margin-bottom: 20px;
+}
+
+#currentSessionDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+#currentSessionDetails p {
+  margin: 0;
+  padding: 8px;
+  background: rgba(31, 31, 31, 0.5);
+  border-radius: 4px;
+}
+
+.session-actions {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.update-section {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.update-section input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #00ffcc;
+  background-color: #1f1f1f;
+  color: #00ffcc;
+  min-width: 0; /* Prevents input from overflowing */
+}
+
+/* General Button Styles */
+button {
+  background-color: #00ffcc;
+  color: #0d0d0d;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  background-color: #00e6b8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 255, 204, 0.3);
+}
+
+/* Session List Styles */
+#saveSessionContainer, #activeSessionsContainer {
+  margin-bottom: 20px;
+}
+
+#sessionName {
+  width: calc(100% - 20px);
+  padding: 8px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  border: 1px solid #00ffcc;
+  background-color: #1f1f1f;
+  color: #00ffcc;
+}
+
+.session {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #333;
+  background: rgba(31, 31, 31, 0.3);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.session-name {
+  flex: 1;
+  font-size: 16px;
+  color: #00ffcc;
+  margin-right: 10px;
+}
+
+/* Message Styles */
+#message {
+  margin-top: 15px;
+  text-align: center;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.error {
+  color: #ff4d4d;
+  background: rgba(255, 77, 77, 0.1);
+}
+
+.success {
+  color: #00ffcc;
+  background: rgba(0, 255, 204, 0.1);
+}
+
+/* Animations */
+@keyframes neonGlow {
+  from {
+      text-shadow: 0 0 5px #00ffcc, 0 0 10px #00ffcc;
+  }
+  to {
+      text-shadow: 0 0 20px #00e6b8, 0 0 30px #00e6b8;
+  }
+}
+
+h1, h2 {
+  animation: neonGlow 1.5s alternate infinite;
+}
+
+.session-name {
+  transition: color 0.3s;
+}
+
+.session-name:hover {
+  color: #00e6b8;
+}
