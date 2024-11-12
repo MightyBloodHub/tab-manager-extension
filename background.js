@@ -80,7 +80,6 @@ chrome.runtime.onInstalled.addListener(() => {
   
     // Check if a session already exists for this window
     if (sessions[windowId]) {
-      // Instead of creating a duplicate, we can update the existing session
       throw new Error('A session already exists for this window.');
     }
   
@@ -89,7 +88,7 @@ chrome.runtime.onInstalled.addListener(() => {
       sessionId: windowId,
       name: sessionName,
       tabs: tabs,
-      windowId: windowId
+      windowId: currentWindow.id
     };
   
     await chrome.storage.local.set({ sessions: sessions });
@@ -124,16 +123,9 @@ chrome.runtime.onInstalled.addListener(() => {
       throw new Error('Session not found');
     }
   
-    const currentWindow = await chrome.windows.getCurrent({ populate: true });
-    const currentWindowId = currentWindow.id;
-    const currentTabUrls = currentWindow.tabs.map(tab => tab.url);
-  
-    // Open tabs that are not already open
-    for (const tabData of session.tabs) {
-      if (!currentTabUrls.includes(tabData.url)) {
-        await chrome.tabs.create({ windowId: currentWindowId, url: tabData.url });
-      }
-    }
+    // Create a new window with the session's tabs
+    const urls = session.tabs.map(tab => tab.url);
+    await chrome.windows.create({ url: urls });
   }
   
   async function renameSession(sessionId, newName) {

@@ -68,26 +68,80 @@ function saveSession() {
   });
 }
 
-function loadSessions() {
-  chrome.runtime.sendMessage({ action: 'getSessions' }, (response) => {
+async function loadSessions() {
+  chrome.runtime.sendMessage({ action: 'getSessions' }, async (response) => {
     if (response && response.success) {
-      displaySessions(response.sessions);
+      const sessions = response.sessions;
+      const currentWindow = await chrome.windows.getCurrent();
+      const currentWindowId = currentWindow.id.toString();
+
+      // Get all open window IDs
+      chrome.windows.getAll({}, (windows) => {
+        const openWindowIds = windows.map(win => win.id.toString());
+
+        // Separate sessions into Active and Saved
+        const activeSessions = [];
+        const savedSessions = [];
+
+        for (let sessionId in sessions) {
+          const session = sessions[sessionId];
+          if (sessionId === currentWindowId) {
+            continue; // Skip current session
+          } else if (openWindowIds.includes(sessionId)) {
+            activeSessions.push(session);
+          } else {
+            savedSessions.push(session);
+          }
+        }
+
+        displayActiveSessions(activeSessions);
+        displaySavedSessions(savedSessions);
+      });
     } else {
       showMessage('Error loading sessions: ' + (response.error || 'Unknown error'), true);
     }
   });
 }
 
-function displaySessions(sessions) {
+function displayActiveSessions(activeSessions) {
+  const activeSessionsList = document.getElementById('activeSessionsList');
+  activeSessionsList.innerHTML = '';
+
+  if (activeSessions.length === 0) {
+    document.getElementById('activeSessionsContainer').style.display = 'none';
+    return;
+  } else {
+    document.getElementById('activeSessionsContainer').style.display = 'block';
+  }
+
+  activeSessions.forEach(session => {
+    const sessionDiv = document.createElement('div');
+    sessionDiv.className = 'session';
+
+    const sessionNameSpan = document.createElement('span');
+    sessionNameSpan.className = 'session-name';
+    sessionNameSpan.textContent = session.name;
+    sessionDiv.appendChild(sessionNameSpan);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'session-actions';
+
+    // Switch button
+    const switchBtn = document.createElement('button');
+    switchBtn.textContent = 'Switch';
+    switchBtn.addEventListener('click', () => switchToWindow(session.windowId));
+    actionsDiv.appendChild(switchBtn);
+
+    sessionDiv.appendChild(actionsDiv);
+    activeSessionsList.appendChild(sessionDiv);
+  });
+}
+
+function displaySavedSessions(savedSessions) {
   const sessionsList = document.getElementById('sessionsList');
   sessionsList.innerHTML = '';
-  const currentWindowId = chrome.windows.WINDOW_ID_CURRENT.toString();
 
-  for (let sessionId in sessions) {
-    const session = sessions[sessionId];
-    // Skip the current session
-    if (sessionId === currentWindowId) continue;
-
+  savedSessions.forEach(session => {
     const sessionDiv = document.createElement('div');
     sessionDiv.className = 'session';
 
@@ -102,24 +156,32 @@ function displaySessions(sessions) {
     // Load button
     const loadBtn = document.createElement('button');
     loadBtn.textContent = 'Load';
-    loadBtn.addEventListener('click', () => loadSession(sessionId));
+    loadBtn.addEventListener('click', () => loadSession(session.sessionId));
     actionsDiv.appendChild(loadBtn);
 
     // Rename button
     const renameBtn = document.createElement('button');
     renameBtn.textContent = 'Rename';
-    renameBtn.addEventListener('click', () => renameSession(sessionId, session.name));
+    renameBtn.addEventListener('click', () => renameSession(session.sessionId, session.name));
     actionsDiv.appendChild(renameBtn);
 
     // Delete button
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = 'Delete';
-    deleteBtn.addEventListener('click', () => deleteSession(sessionId));
+    deleteBtn.addEventListener('click', () => deleteSession(session.sessionId));
     actionsDiv.appendChild(deleteBtn);
 
     sessionDiv.appendChild(actionsDiv);
     sessionsList.appendChild(sessionDiv);
-  }
+  });
+}
+
+function switchToWindow(windowId) {
+  chrome.windows.update(parseInt(windowId), { focused: true }, (window) => {
+    if (chrome.runtime.lastError) {
+      showMessage('Error switching to window: ' + chrome.runtime.lastError.message, true);
+    }
+  });
 }
 
 function loadSession(sessionId) {

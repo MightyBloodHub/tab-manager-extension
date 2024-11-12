@@ -29,7 +29,7 @@ body {
     font-size: 20px;
   }
   
-  #currentSessionContainer, #saveSessionContainer {
+  #currentSessionContainer, #saveSessionContainer, #activeSessionsContainer {
     margin-bottom: 20px;
   }
   
@@ -57,7 +57,7 @@ body {
     background-color: #00e6b8;
   }
   
-  #sessionsList .session {
+  .session {
     display: flex;
     align-items: center;
     padding: 8px 0;
