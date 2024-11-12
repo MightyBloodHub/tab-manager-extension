@@ -75,6 +75,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: false, error: error.message });
     });
     return true;
+  } else if (request.action === 'restoreSessionTabs') {
+    restoreSessionTabs(request.sessionId).then(() => {
+      sendResponse({ success: true });
+    }).catch((error) => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
   }
 });
 
@@ -193,5 +200,31 @@ async function getSessionByWindowId(windowId) {
     return sessions[windowId];
   } else {
     return null;
+  }
+}
+
+// New function to restore tabs from a session
+async function restoreSessionTabs(sessionId) {
+  const sessions = await getSessions();
+  const session = sessions[sessionId];
+  
+  if (!session) {
+    throw new Error('Session not found');
+  }
+
+  // Get current window tabs
+  const currentWindow = await chrome.windows.get(parseInt(sessionId), { populate: true });
+  const existingUrls = new Set(currentWindow.tabs.map(tab => tab.url));
+  
+  // Find tabs that need to be restored (exist in session but not in current window)
+  const tabsToRestore = session.tabs.filter(tab => !existingUrls.has(tab.url));
+  
+  // Create the missing tabs in the current window
+  for (const tab of tabsToRestore) {
+    await chrome.tabs.create({
+      windowId: parseInt(sessionId),
+      url: tab.url,
+      active: false // Don't switch to the new tab
+    });
   }
 }

@@ -65,18 +65,43 @@ function displayCurrentSession(session) {
   namePara.innerHTML = `<strong>Name:</strong> ${session.name}`;
   currentSessionDetails.appendChild(namePara);
   
+  // Create actions container
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'session-actions';
+  
+  // Create reload button
+  const reloadBtn = document.createElement('button');
+  reloadBtn.textContent = 'Restore Tabs';
+  reloadBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ 
+      action: 'restoreSessionTabs', 
+      sessionId: session.sessionId 
+    }, (response) => {
+      if (response && response.success) {
+        showMessage('Session tabs restored successfully.');
+      } else {
+        showMessage('Error restoring tabs: ' + (response.error || 'Unknown error'), true);
+      }
+    });
+  });
+  actionsDiv.appendChild(reloadBtn);
+  
+  // Create update section
+  const updateSection = document.createElement('div');
+  updateSection.className = 'update-section';
+  
   // Create and append input
   const input = document.createElement('input');
   input.type = 'text';
   input.id = 'updateSessionName';
   input.placeholder = 'Enter new name (optional)';
-  currentSessionDetails.appendChild(input);
+  updateSection.appendChild(input);
   
-  // Create and append button
-  const button = document.createElement('button');
-  button.id = 'updateSession';
-  button.textContent = 'Update Session';
-  button.addEventListener('click', () => {
+  // Create and append update button
+  const updateBtn = document.createElement('button');
+  updateBtn.id = 'updateSession';
+  updateBtn.textContent = 'Update Session';
+  updateBtn.addEventListener('click', () => {
     const newName = input.value.trim();
     chrome.runtime.sendMessage({ 
       action: 'updateSession', 
@@ -91,7 +116,11 @@ function displayCurrentSession(session) {
       }
     });
   });
-  currentSessionDetails.appendChild(button);
+  updateSection.appendChild(updateBtn);
+  
+  // Append all sections
+  currentSessionDetails.appendChild(actionsDiv);
+  currentSessionDetails.appendChild(updateSection);
 }
 
 function saveSession() {
